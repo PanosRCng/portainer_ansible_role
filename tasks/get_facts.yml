@@ -1,0 +1,25 @@
+---
+
+- name: Get Facts | set fact portainer_server_endpoints_list
+  set_fact:
+    portainer_server_endpoints_list: "{{ portainer_server_endpoints_list | default([]) +
+      [
+        {
+          'name': item,
+          'url': 'tcp://' + item + ':' + portainer_agent_port|string
+        }
+      ]
+    }}"
+  loop: "{{ groups['portainer'] }}"
+
+
+- name: Get Facts | set fact portainer_server_endpoints
+  set_fact: 
+    portainer_server_endpoints: "{{ portainer_server_endpoints_list | default(portainer_server_endpoints_list_default) }}"
+
+
+- name: Get Facts | show portainer_server_endpoints
+  debug:
+      msg: "{{ portainer_server_endpoints }}"
+
+

@@ -1,0 +1,126 @@
+---
+
+
+- name: Deploy Server | tear down existing docker stack services
+  community.docker.docker_compose_v2:
+    project_src: "{{ portainer_docker_stack_directory }}"
+    files: 
+      - portainer.yml
+    env_files: 
+      - env
+    state: absent
+    services:
+      - server
+
+
+- name: Deploy Server | Remove data executing reset_stack.sh
+  ansible.builtin.shell:
+    cmd: './reset_stack.sh'
+    chdir: '{{ portainer_docker_stack_directory }}'
+  when: portainer_server_reset_stack
+
+
+- name: Deploy Server | deploy docker compose stack services
+  community.docker.docker_compose_v2:
+    project_src: "{{ portainer_docker_stack_directory }}"
+    files: 
+      - portainer.yml
+    env_files: 
+      - env
+    services:
+      - server
+  register: output
+
+
+- name: Deploy Server | verify that services are running
+  ansible.builtin.assert:
+    that:
+      - "output.containers[0].State == 'running'"
+    fail_msg: "containers could not start"
+    success_msg: "containers started"
+
+
+- name: Deploy Server | wait for web interface to get available
+  uri:
+    url: "http://{{ portainer_network_gateway }}:{{ portainer_server_host_port }}"
+    method: GET
+  register: wait_portainer_result
+  until: wait_portainer_result is succeeded
+  retries: 10
+  delay: 3
+  changed_when: false
+
+
+- set_fact:
+    portainer_endpoint: "http://{{ portainer_network_gateway }}:{{ portainer_server_host_port }}/api"
+
+
+- name: Deploy Server | configure admin user password
+  uri:
+    url: "{{ portainer_endpoint }}/users/admin/init"
+    method: POST
+    return_content: true
+    body_format: json
+    body: '{ "Username":"{{ portainer_server_admin_user }}", "Password":"{{ portainer_server_admin_password }}"}'
+    status_code: 200, 409
+
+
+- name: Deploy Server | generate authentication token
+  uri:
+    url: "{{ portainer_endpoint }}/auth"
+    method: POST
+    return_content: true
+    body_format: json
+    body: '{"Username": "{{ portainer_server_admin_user }}", "Password": "{{ portainer_server_admin_password }}"}'
+  register: auth_token
+
+
+- name: Deploy Server | get Endpoints
+  uri:
+    url: "{{ portainer_endpoint }}/endpoints"
+    method: GET
+    return_content: true
+    headers:
+      Authorization: Bearer {{ (auth_token.content|from_json).jwt }}
+  register: portainer_known_endpoints_raw
+
+
+- name: Deploy Server | save endpoints as fact
+  set_fact:
+    portainer_known_endpoints: "{{ portainer_known_endpoints_raw.json | map(attribute='Name') | list }}"
+
+
+- name: Deploy Server | show known endpoints
+  debug: msg="{{ portainer_known_endpoints }}"
+
+
+- name: Deploy Server | define Endpoints
+  shell: |
+    curl --silent --show-error -o - {{ portainer_endpoint }}/endpoints \
+      -H "Authorization: Bearer {{ (auth_token.content|from_json).jwt }}" \
+      -F "Name={{ item.name }}" \
+      -F "URL={{ item.url }}" \
+      -F "EndpointCreationType=2" \
+      -F "TLS=true" \
+      -F "TLSSkipVerify=true" \
+      -F "TLSSkipClientVerify=true"    
+  with_items:
+    - "{{ portainer_server_endpoints | list }}"
+  when: item.name not in portainer_known_endpoints
+  register: response
+  tags: [skip_ansible_lint]
+
+
+#- name: Deploy Server | debug response
+#  debug:
+#    msg: "Endpoint {{ item.item.name }}, Response: {{ item.stdout| default('{}')|from_json }}"
+#  with_items:
+#    - "{{ response.results }}"
+
+
+- name: Deploy Server | verifying calls
+  fail:
+    msg: "Could not add endpoint: {{ item.item.name }}"
+  when: item.stdout is defined and (item.stdout|from_json).err is defined
+  with_items:
+    - "{{ response.results }}"

@@ -1,0 +1,33 @@
+---
+
+
+- name: Deploy Agent | tear down existing docker stack services
+  community.docker.docker_compose_v2:
+    project_src: "{{ portainer_docker_stack_directory }}"
+    files: 
+      - portainer.yml
+    env_files: 
+      - env
+    state: absent
+    services:
+      - agent
+
+
+- name: Deploy Agent | deploy docker compose stack services
+  community.docker.docker_compose_v2:
+    project_src: "{{ portainer_docker_stack_directory }}"
+    files: 
+      - portainer.yml
+    env_files: 
+      - env
+    services:
+      - agent
+  register: output
+
+
+- name: Deploy Agent | verify that services are running
+  ansible.builtin.assert:
+    that:
+      - "output.containers[0].State == 'running'"
+    fail_msg: "containers could not start"
+    success_msg: "containers started"

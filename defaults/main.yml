@@ -1,0 +1,26 @@
+---
+
+ansible_user: default_ansible_user
+
+docker_user: default_ansible_user
+
+portainer_docker_stack_directory: "/home/default/docker_stacks/portainer_docker_stack"
+
+
+portainer_network_subnet: "172.17.0.0/24"
+portainer_network_gateway: "172.17.0.1"
+
+portainer_agent_port: 9001
+
+portainer_server: false
+
+portainer_server_host_port: 9000
+portainer_server_user_id: 1000
+portainer_server_group_id: 1000
+portainer_server_reset_stack: true
+portainer_server_data_directory: "{{ portainer_docker_stack_directory }}/stack_data/portainer_data/"
+portainer_server_admin_user: admin
+portainer_server_admin_password: admin
+portainer_server_endpoints_list_default:
+  - {name: local, url: ""}
+  #- {name: remote1, url: "tcp://5.6.7.8:2375"}

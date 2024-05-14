@@ -1,0 +1,25 @@
+---
+
+- name: Copy docker stack files
+  include_tasks: copy_stack.yml
+
+
+- name: Copy env file
+  include_tasks: copy_env.yml
+
+
+- name: Deploy agent
+  include_tasks: deploy_agent.yml
+
+
+- name: Get facts
+  include_tasks: get_facts.yml
+  when:
+    - portainer_server
+
+
+- name: Deploy server
+  include_tasks: deploy_server.yml
+  when:
+    - portainer_server
+
